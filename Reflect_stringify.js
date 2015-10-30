@@ -793,7 +793,7 @@
     } else {
         throw new Error("usage: js Reflect_stringify.js --check FILE");
     }
-})(scriptArgs,
+})(this.scriptArgs,
    function /*disscript*/() {
        // Note: Some tests fail if you use dis(Function(s)) instead.
        try {
