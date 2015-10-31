@@ -165,6 +165,9 @@
                 return s + ']';
             }
 
+        case "SpreadExpression":
+            return "..." + expr(n.expression, indent, 2, false);
+
         case "ObjectExpression":
             {
                 var s = [];
@@ -204,6 +207,9 @@
                 }
                 return "{" + s.join(", ") + "}";
             }
+
+        case "ComputedName":
+            return "[" + expr(n.name, indent, 2, false) + "]";
 
         case "LetExpression":
             return wrapExpr("let (" + declarators(n.head, indent, false) + ") " +
@@ -699,7 +705,7 @@
              "};\n"),
             "a => b => [a, b];\n",
             "a = b => c;\n",
-            
+
             // strict declarations
             ('"use strict";\n' +
              'x = 1;\n'),
@@ -758,7 +764,7 @@
              "        eval(\"for(let y in [\\\"\\\", ''])\");\n" +
              "    } catch (ex) {\n" +
              "    }\n" +
-             "    new test3;\n" + 
+             "    new test3;\n" +
              "}\n"),
         ];
 
