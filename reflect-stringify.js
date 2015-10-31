@@ -336,11 +336,15 @@
 
         case "ArrowFunctionExpression":
             {
-                var par = params(n.params, indent, {arrow: true});
-                var body =
-                    n.body.type === "BlockStatement"
-                    ? substmt(n.body, indent).trim()
-                    : expr(n.body, indent, 2, false);
+                let par = params(n.params, indent, {arrow: true});
+                let body;
+                if (n.body.type === "BlockStatement") {
+                    body = substmt(n.body, indent).trim();
+                } else {
+                    body = expr(n.body, indent, 2, false);
+                    if (body.startsWith("{"))
+                        body = "(" + body + ")";
+                }
                 return wrapExpr(par + " => " + body, cprec, 3);
             }
 
@@ -705,6 +709,8 @@
              "};\n"),
             "a => b => [a, b];\n",
             "a = b => c;\n",
+            "a => ({});\n",
+            "y = a => ({}.x);\n",
 
             // strict declarations
             ('"use strict";\n' +
