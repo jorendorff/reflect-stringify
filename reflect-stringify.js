@@ -779,26 +779,6 @@
     } else if (args.length === 0) {
         return runUnitTests();
     } else if (args.length === 2 && args[0] === "--check") {
-        // Adjust the language version.
-        // Many tests rely on a particular version of JS, specified in this
-        // shell.js file. We don't load all the shell.js files, because that
-        // would be crazy. Minimum craziness to get the job done.
-        version(0); // the default
-        var m = args[1].match(/^([A-Za-z0-9_-]+)[\/\\]/);
-        if (m !== null) {
-            let shell_js;
-            try {
-                shell_js = read(m[1] + "/shell.js");
-            } catch (exc) {
-                // No shell.js, most likely.
-                print(m[1] + "/shell.js not found");
-            }
-            if (shell_js) {
-                let indirect_eval = eval;
-                indirect_eval(shell_js);
-            }
-        }
-
         var program = read(args[1]);
         var after;
         try {
