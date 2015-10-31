@@ -46,8 +46,12 @@
         return "\n" + stmt(n, indent + "    ") + (more ? indent : "");
     }
 
-    function params(arr, indent) {
-        return "(" + arr.map(x => expr(x, '####', 18, false)).join(", ") + ")";
+    function params(arr, indent, opts) {
+        var stuff = arr.map(x => expr(x, '####', 18, false)).join(", ");
+        if (opts && opts.arrow && arr.length === 1 && arr[0].type === "Identifier")
+            return stuff;
+        else
+            return "(" + stuff + ")";
     }
 
     function args(arr, indent) {
@@ -55,7 +59,10 @@
     }
 
     function functionDeclaration(init, id, n, indent) {
-        var generatorStar = n.generator ? "*" : "";
+        if (n.generator)
+            init += "*";
+        if (init !== "")
+            init += " ";
 
         // name is ordinarily an identifier, but literals are also legal for
         // getters and setters: ({get 1() {}})
@@ -72,7 +79,7 @@
             body = substmt(n.body, indent).trimRight();
         }
 
-        return init + generatorStar + " " + name + params(n.params, indent) + body;
+        return init + name + params(n.params, indent) + body;
     }
 
     function identifierName(n) {
@@ -158,29 +165,32 @@
 
         case "ObjectExpression":
             {
-                var p = n.properties, s = [];
-                for (var i = 0; i < p.length; i++) {
-                    var prop = p[i];
+                var s = [];
+                for (let prop of n.properties) {
+                    let code;
                     switch (prop.kind) {
                     case "init":
-                        s[i] = expr(prop.key, indent, 18, false) + ": " + expr(prop.value, indent, 2, false);
+                        {
+                            let key = expr(prop.key, indent, 18, false);
+                            if (prop.shorthand)
+                                code = key;
+                            else if (prop.method)
+                                code = functionDeclaration("", prop.key, prop.value, indent);
+                            else
+                                code = key + ": " + expr(prop.value, indent, 2, false);
+                        }
                         break;
                     case "get":
                     case "set":
-                        s[i] = functionDeclaration(prop.kind, prop.key, prop.value, indent);
+                        code = functionDeclaration(prop.kind, prop.key, prop.value, indent);
                         break;
                     default:
-                        s[i] = unexpected(prop);
+                        code = unexpected(prop);
                     }
+                    s.push(code);
                 }
                 return "{" + s.join(", ") + "}";
             }
-
-        case "GraphExpression":
-            return "#" + n.index + "=" + expr(n.expression, indent, 18, false);
-
-        case "GraphIndexExpression":
-            return "#" + n.index + "#";
 
         case "LetExpression":
             return wrapExpr("let (" + declarators(n.head, indent, false) + ") " +
@@ -304,6 +314,16 @@
         case "FunctionExpression":
             return wrapExpr(functionDeclaration("function", n.id, n, indent),
                             cprec, n.expression ? 3 : 19);
+
+        case "ArrowFunctionExpression":
+            {
+                var par = params(n.params, indent, {arrow: true});
+                var body =
+                    n.body.type === "BlockStatement"
+                    ? substmt(n.body, indent).trim()
+                    : expr(n.body, indent, 2, false);
+                return wrapExpr(par + " => " + body, cprec, 3);
+            }
 
         // These Patterns appear as function parameters, assignment and
         // declarator left-hand sides, and as the left-hand side in a for-in
@@ -488,12 +508,11 @@
 })();
 
 
-(function main(args, disscript) {
+(function main(args) {
     "use strict";
     function runUnitTests() {
-        // These programs avoid using constructs that trigger constant folding or
-        // other optimizations in the JS engine. They are spaced and parenthesized
-        // just so. Thus Reflect.stringify mirrors Reflect.parse for these strings.
+        // These programs are spaced and parenthesized just so, such that
+        // Reflect.stringify mirrors Reflect.parse for these strings.
         var tests = [
             // expressions
             "x;\n",
@@ -514,6 +533,8 @@
             ("({get 1() {\n" +
              "    return this;\n" +
              "}});\n"),
+            ("({f() {\n}});\n"),
+            "let pt = {x, y};\n",
             "[,, 2];\n",
             "[, 1,,];\n",
             "[1,,, 2,,,];\n",
@@ -656,7 +677,13 @@
             "function f(a) a = 1;\n",
             "function f(x) function (y) x + y;\n",
             "function f(x) ({name: x, value: 0});\n",
-
+            "a => a + 1;\n",
+            ("() => {\n" +
+             "    x++;\n" +
+             "};\n"),
+            "a => b => [a, b];\n",
+            "a = b => c;\n",
+            
             // strict declarations
             ('"use strict";\n' +
              'x = 1;\n'),
@@ -757,7 +784,7 @@
         // shell.js file. We don't load all the shell.js files, because that
         // would be crazy. Minimum craziness to get the job done.
         version(0); // the default
-        var m = args[1].match(/^([A-Za-z0-9_-]+)[/\\]/);
+        var m = args[1].match(/^([A-Za-z0-9_-]+)[\/\\]/);
         if (m !== null) {
             let shell_js;
             try {
@@ -781,26 +808,36 @@
             throw exc;
         }
 
-        print("=== PROGRAM BEFORE ===");
-        print(program);
-        print("\n=== PROGRAM AFTER ===");
-        print(after);
-        print("\n=== START 1 ===");
-        disscript(program);
-        print("\n=== START 2 ===");
-        disscript(after);
-        print("\n=== END ===");
+        var dis0 = disassemble("-r", "-S", program);
+        var dis1 = disassemble("-r", "-S", after);
+
+        let stripVaryingBits = str => {
+            return (str
+                    // JSOP_LINENO opcodes provide line number information (for direct
+                    // eval).  We need to strip those out, since the line numbers will
+                    // never match except by accident.
+                    .replace(/^(\d+: +lineno +)\d+$/mg, "$1**")
+                    // Unfortunately the disassembly for JSOP_LAMBDA and
+                    // JSOP_DEFFUN includes the entire function. Try and strip
+                    // that out too.
+                    .replace(/(\n\d+: +(?:deffun|lambda|lambda_arrow)\b) +[\s\S]*?(?=\n0\d{4}:)/g, "$1 ***"));
+        };
+
+        if (stripVaryingBits(dis0) === stripVaryingBits(dis1)) {
+            print(" PASSED! OK");
+        } else {
+            print("Disassembly output did not match.");
+            print("=== PROGRAM BEFORE ===");
+            print(program);
+            print("\n=== PROGRAM AFTER ===");
+            print(after);
+            print("\n=== START 1 ===");
+            print(stripVaryingBits(dis0));
+            print("\n=== START 2 ===");
+            print(stripVaryingBits(dis1));
+            print("\n=== END ===");
+        }
     } else {
-        throw new Error("usage: js Reflect_stringify.js --check FILE");
+        throw new Error("usage: js reflect-stringify.js --check FILE");
     }
-})(this.scriptArgs,
-   function /*disscript*/() {
-       // Note: Some tests fail if you use dis(Function(s)) instead.
-       try {
-           eval("throw dis('-r', '-S');\n" + arguments[0]);
-           throw "FAIL";
-       } catch (exc) {
-           if (exc !== void 0)
-               throw exc;
-       }
-   });
+})(this.scriptArgs);
