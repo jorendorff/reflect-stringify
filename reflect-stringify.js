@@ -59,7 +59,9 @@
     }
 
     function functionDeclaration(init, id, n, indent) {
-        if (n.generator)
+        // Note: If n represents a legacy generator, then n.generator is the
+        // string "legacy" rather than true.
+        if (n.generator === true)
             init += "*";
         if (init !== "")
             init += " ";
@@ -113,20 +115,20 @@
         "%": 14,
     };
 
-    function forHead(n, indent) {
+    function forHead(n, kw, indent) {
         let lhs;
         if (n.left.type == "VariableDeclaration")
             lhs = n.left.kind + " " + declarators(n.left.declarations, indent, true);
         else
             lhs = expr(n.left, indent, 0, true);
 
-        return "for " + (n.each ? "each " : "") + "(" + lhs + " in " +  expr(n.right, indent, 0, false) + ")";
+        return `for ${n.each ? "each " : ""}(${lhs} ${kw} ${expr(n.right, indent, 0, false)})`;
     }
 
     function comprehension(n, indent) {
         let s = expr(n.body, indent, 2, false);
-        for (let i = 0; i < n.blocks.length; i++)
-            s += " " + forHead(n.blocks[i], indent);
+        for (let block of n.blocks)
+            s += " " + forHead(block, block.of ? "of" : "in", indent);
         if (n.filter)
             s += " if (" + expr(n.filter, indent, 0, false) + ")";
         return s;
@@ -168,22 +170,33 @@
                 var s = [];
                 for (let prop of n.properties) {
                     let code;
-                    switch (prop.kind) {
-                    case "init":
-                        {
-                            let key = expr(prop.key, indent, 18, false);
-                            if (prop.shorthand)
-                                code = key;
-                            else if (prop.method)
-                                code = functionDeclaration("", prop.key, prop.value, indent);
-                            else
-                                code = key + ": " + expr(prop.value, indent, 2, false);
+                    switch (prop.type) {
+                    case "Property":
+                        switch (prop.kind) {
+                        case "init":
+                            {
+                                let key = expr(prop.key, indent, 18, false);
+                                if (prop.shorthand)
+                                    code = key;
+                                else if (prop.method)
+                                    code = functionDeclaration("", prop.key, prop.value, indent);
+                                else
+                                    code = key + ": " + expr(prop.value, indent, 2, false);
+                            }
+                            break;
+                        case "get":
+                        case "set":
+                            code = functionDeclaration(prop.kind, prop.key, prop.value, indent);
+                            break;
+                        default:
+                            code = unexpected(prop);
                         }
                         break;
-                    case "get":
-                    case "set":
-                        code = functionDeclaration(prop.kind, prop.key, prop.value, indent);
+
+                    case "PrototypeMutation":
+                        code = "__proto__: " + expr(prop.value, indent, 2, false);
                         break;
+
                     default:
                         code = unexpected(prop);
                     }
@@ -420,7 +433,10 @@
             }
 
         case "ForInStatement":
-            return indent + forHead(n, indent) + substmt(n.body, indent);
+            return indent + forHead(n, "in", indent) + substmt(n.body, indent);
+
+        case "ForOfStatement":
+            return indent + forHead(n, "of", indent) + substmt(n.body, indent);
 
         case "DoWhileStatement":
             {
