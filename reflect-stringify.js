@@ -184,8 +184,7 @@
     // cprec is the context precedence. If it is high, but n has low
     // precedence, n is automatically wrapped in parentheses.
     // if noIn is true, wrap in-expressions in parentheses.
-    function expr(n, indent, cprec, noIn) {
-        assertEq(arguments.length, 4);
+    function expr(n, indent, cprec, noIn = false) {
         assertEq(noIn, noIn && cprec <= 11);
 
         switch (n.type) {
@@ -199,7 +198,7 @@
                     if (e[i] !== null) {
                         if (i != 0)
                             s += ' ';
-                        s += expr(e[i], indent, 2, false);
+                        s += expr(e[i], indent, 2);
                     }
                     if (i != len - 1 || e[i] === null)
                         s += ',';
@@ -208,7 +207,7 @@
             }
 
         case "SpreadExpression":
-            return "..." + expr(n.expression, indent, 2, false);
+            return "..." + expr(n.expression, indent, 2);
 
         case "ObjectExpression":
             {
@@ -221,13 +220,13 @@
                         switch (prop.kind) {
                         case "init":
                             {
-                                let key = expr(prop.key, extraIndent, 18, false);
+                                let key = expr(prop.key, extraIndent, 18);
                                 if (prop.shorthand)
                                     code = key;
                                 else if (prop.method)
                                     code = functionDeclaration("", prop.key, prop.value, indent);
                                 else
-                                    code = key + ": " + expr(prop.value, indent, 2, false);
+                                    code = key + ": " + expr(prop.value, indent, 2);
                             }
                             break;
                         case "get":
@@ -240,7 +239,7 @@
                         break;
 
                     case "PrototypeMutation":
-                        code = "__proto__: " + expr(prop.value, indent, 2, false);
+                        code = "__proto__: " + expr(prop.value, indent, 2);
                         break;
 
                     default:
@@ -252,11 +251,11 @@
             }
 
         case "ComputedName":
-            return "[" + expr(n.name, indent, 2, false) + "]";
+            return "[" + expr(n.name, indent, 2) + "]";
 
         case "LetExpression":
             return wrapExpr("let (" + declarators(n.head, indent, false) + ") " +
-                              expr(n.body, indent, 2, false),
+                              expr(n.body, indent, 2),
                             cprec, 3);
 
         case "GeneratorExpression":
@@ -270,7 +269,7 @@
             // `(yield a), b` or `yield (a, b)`.
             return wrapExpr("yield" +
                             (n.delegate ? "*" : "") +
-                            (n.argument ? " " + expr(n.argument, indent, 2, false) : ""),
+                            (n.argument ? " " + expr(n.argument, indent, 2) : ""),
                             cprec, 1);
 
         case "SequenceExpression":
@@ -309,30 +308,30 @@
             }
 
         case "CallExpression":
-            return wrapExpr(expr(n.callee, indent, 17, false) +
+            return wrapExpr(expr(n.callee, indent, 17) +
                              args(n.arguments, indent),
                             cprec, 18);
 
         case "NewExpression":
             return (n.arguments.length == 0
-                    ? wrapExpr("new " + expr(n.callee, indent, 18, false), cprec, 17)
-                    : wrapExpr("new " + expr(n.callee, indent, 18, false) + args(n.arguments, indent),
+                    ? wrapExpr("new " + expr(n.callee, indent, 18), cprec, 17)
+                    : wrapExpr("new " + expr(n.callee, indent, 18) + args(n.arguments, indent),
                                cprec, 17));
 
         case "ThisExpression":
             return "this";
 
         case "MemberExpression":
-            return wrapExpr(expr(n.object, indent, 17, false) +
+            return wrapExpr(expr(n.object, indent, 17) +
                              (n.computed
-                              ? "[" + expr(n.property, indent, 0, false) + "]"
+                              ? "[" + expr(n.property, indent, 0) + "]"
                               : isBadIdentifier(n.property)
                               ? "[" + uneval(n.property.name) + "]"
-                              : "." + expr(n.property, indent, 18, false)),
+                              : "." + expr(n.property, indent, 18)),
                             cprec, 18);
 
         case "MetaProperty":
-            return expr(n.meta, "####", 18, false) + "." + expr(n.property, "####", 18, false);
+            return expr(n.meta, "####", 18) + "." + expr(n.property, "####", 18);
 
         case "UnaryExpression":
         case "UpdateExpression":
@@ -340,7 +339,7 @@
                 var op = n.operator;
                 if (op == 'typeof' || op == 'void' || op == 'delete')
                     op += ' ';
-                let s = expr(n.argument, indent, 15, false);
+                let s = expr(n.argument, indent, 15);
                 return wrapExpr(n.prefix ? op + s : s + op, cprec, 15);
             }
 
@@ -389,7 +388,7 @@
                 if (n.body.type === "BlockStatement") {
                     body = substmt(n.body, indent).trim();
                 } else {
-                    body = expr(n.body, indent, 2, false);
+                    body = expr(n.body, indent, 2);
                     if (body.startsWith("{"))
                         body = "(" + body + ")";
                 }
@@ -404,9 +403,9 @@
                 var s = [];
                 for (var i = 0; i < n.properties.length; i++) {
                     var p = n.properties[i];
-                    s[i] = expr(p.key, indent + INDENT_LEVEL, 18, false) +
+                    s[i] = expr(p.key, indent + INDENT_LEVEL, 18) +
                             ": " +
-                            expr(p.value, indent + INDENT_LEVEL, 2, false);
+                            expr(p.value, indent + INDENT_LEVEL, 2);
                 }
                 return "{" + s.join(", ") + "}";
             }
@@ -423,7 +422,7 @@
                             throw new Error("unexpected " + uneval(e.value) + " in TemplateLiteral");
                         s += quoteChars(e.value);
                     } else {
-                        s += "${" + expr(e, indent + INDENT_LEVEL, 1, false) + "}";
+                        s += "${" + expr(e, indent + INDENT_LEVEL, 1) + "}";
                     }
                     expectString = !expectString;
                 }
@@ -432,14 +431,14 @@
 
         case "TaggedTemplate":
             {
-                let tag = expr(n.callee, indent, 16, false);
+                let tag = expr(n.callee, indent, 16);
                 let cso = n.arguments[0];
                 expectType(cso, "CallSiteObject");
                 let s = "";
                 for (let i = 0; i < cso.raw.length; i++) {
                     s += cso.raw[i];
                     if (i + 1 < n.arguments.length) {
-                        let x = expr(n.arguments[i + 1], indent + INDENT_LEVEL, 1, false);
+                        let x = expr(n.arguments[i + 1], indent + INDENT_LEVEL, 1);
                         s += "${" + x + "}";
                     }
                 }
@@ -457,7 +456,7 @@
             var n = arr[i];
 
             if (n.type === "VariableDeclarator") {
-                var patt = expr(n.id, '####', 3, false);
+                var patt = expr(n.id, '####', 3);
                 s[i] = n.init === null ? patt : patt + " = " + expr(n.init, indent, 2, noIn);
             } else {
                 s[i] = unexpected(n);
@@ -488,7 +487,7 @@
 
         case "ExpressionStatement":
             {
-                let s = expr(n.expression, indent, 0, false);
+                let s = expr(n.expression, indent, 0);
                 if (s.match(/^(?:function |let |{)/))
                     s = "(" + s + ")";
                 return indent + s + ";\n";
@@ -497,7 +496,7 @@
         case "IfStatement":
             {
                 var gotElse = n.alternate !== null;
-                var s = indent + "if (" + expr(n.test, indent, 0, false) + ")" +
+                var s = indent + "if (" + expr(n.test, indent, 0) + ")" +
                         substmt(n.consequent, indent, gotElse);
                 if (gotElse)
                     s += "else" + substmt(n.alternate, indent);
@@ -505,7 +504,7 @@
             }
 
         case "WhileStatement":
-            return indent + "while (" + expr(n.test, indent, 0, false) + ")" + substmt(n.body, indent);
+            return indent + "while (" + expr(n.test, indent, 0) + ")" + substmt(n.body, indent);
 
         case "ForStatement":
             {
@@ -518,10 +517,10 @@
                 }
                 s += ";";
                 if (n.test)
-                    s += " " + expr(n.test, indent, 0, false);
+                    s += " " + expr(n.test, indent, 0);
                 s += ";";
                 if (n.update)
-                    s += " " + expr(n.update, indent, 0, false);
+                    s += " " + expr(n.update, indent, 0);
                 s += ")";
                 return s + substmt(n.body, indent);
             }
@@ -535,7 +534,7 @@
         case "DoWhileStatement":
             {
                 var body = substmt(n.body, indent, true);
-                return (indent + "do" + body + "while (" + expr(n.test, indent, 0, false) + ");\n");
+                return (indent + "do" + body + "while (" + expr(n.test, indent, 0) + ");\n");
             }
 
         case "ContinueStatement":
@@ -546,11 +545,11 @@
 
         case "ReturnStatement":
             return (indent + "return" +
-                    (n.argument ? " " + expr(n.argument, indent, 0, false) : "") +
+                    (n.argument ? " " + expr(n.argument, indent, 0) : "") +
                     ";\n");
 
         case "WithStatement":
-            return (indent + "with (" + expr(n.object, indent, 0, false) + ")" +
+            return (indent + "with (" + expr(n.object, indent, 0) + ")" +
                     substmt(n.body, indent));
 
         case "LabeledStatement":
@@ -559,12 +558,12 @@
         case "SwitchStatement":
             {
                 let cases = n.cases;
-                let s = indent + "switch (" + expr(n.discriminant, indent, 0, false) + ") {\n";
+                let s = indent + "switch (" + expr(n.discriminant, indent, 0) + ") {\n";
                 let deeper = indent + "    ";
                 for (let j = 0; j < n.cases.length; j++) {
                     let scase = cases[j];
                     s += indent;
-                    s += (scase.test ? "case " + expr(scase.test, indent, 0, false) : "default");
+                    s += (scase.test ? "case " + expr(scase.test, indent, 0) : "default");
                     s += ":\n";
                     let stmts = scase.consequent;
                     for (let i = 0; i < stmts.length; i++)
@@ -574,20 +573,20 @@
             }
 
         case "ThrowStatement":
-            return indent + "throw " + expr(n.argument, indent, 0, false) + ";\n";
+            return indent + "throw " + expr(n.argument, indent, 0) + ";\n";
 
         case "TryStatement":
             {
                 let s = indent + "try" + substmt(n.block, indent, true);
                 for (let [i, c] of n.guardedHandlers.entries()) {
-                    s += "catch (" + expr(c.param, '####', 0, false) +
-                        " if (" + expr(c.guard, indent, 0, false) + ")";
+                    s += "catch (" + expr(c.param, '####', 0) +
+                        " if (" + expr(c.guard, indent, 0) + ")";
                     let more = (n.finalizer !== null || n.handler !== null || i !== n.guardedHandlers.length - 1);
                     s += ")" + substmt(c.body, indent, more);
                 }
                 let c = n.handler;
                 if (c !== null) {
-                    s += "catch (" + expr(c.param, "####", 0, false) + ")" +
+                    s += "catch (" + expr(c.param, "####", 0) + ")" +
                         substmt(c.body, indent, n.finalizer !== null);
                 }
                 if (n.finalizer)
