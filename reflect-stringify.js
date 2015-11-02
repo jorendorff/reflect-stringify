@@ -54,7 +54,7 @@
     }
 
     function params(n, indent) {
-        let {params, defaults} = n;
+        let {params, defaults, rest} = n;
         var args = [];
         for (let i = 0; i < params.length; i++) {
             let arg = expr(params[i], '####', 18, false);
@@ -63,13 +63,17 @@
             }
             args.push(arg);
         }
+        if (rest !== null) {
+            args.push("..." + expr(rest, '####', 18));
+        }
 
         let argsStr = args.join(", ");
         let dropParens =
             n.type === "ArrowFunctionExpression" &&
             params.length === 1 &&
             params[0].type === "Identifier" &&
-            defaults.length === 0;
+            defaults.length === 0 &&
+            rest === null;
         return dropParens ? argsStr : "(" + argsStr + ")";
     }
 
@@ -834,6 +838,7 @@
             "function f(a) a = 1;\n",
             "function f(x) function (y) x + y;\n",
             "function f(x) ({name: x, value: 0});\n",
+            "function f(a, b, c = 3, ...others) {\n}\n",
             "a => a + 1;\n",
             ("() => {\n" +
              "    x++;\n" +
