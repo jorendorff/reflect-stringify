@@ -517,7 +517,7 @@
         case "ExpressionStatement":
             {
                 let s = expr(n.expression, indent, 0);
-                if (s.match(/^(?:function |let |{)/))
+                if (s.match(/^(?:function\b|let |{)/))
                     s = "(" + s + ")";
                 return indent + s + ";\n";
             }
@@ -852,6 +852,7 @@
              "}\n"),
             "(a = 1) => 3;\n",
             "(a, b = (c, d)) => 13;\n",
+            "(function* () {\n});\n",
 
             // strict declarations
             ('"use strict";\n' +
