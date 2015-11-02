@@ -1,11 +1,18 @@
 (function () {
     "use strict";
 
-    function unexpected(n) {
+    function unexpected(n, msg) {
         var pos = n.loc ? " at " + n.loc.source + ":" + n.loc.start.line : "";
         var s = "Unexpected parse node type: " + n.type + pos +
             " (" + Object.getOwnPropertyNames(n).toSource() + ")";
+        if (msg !== undefined)
+            s += msg;
         throw new TypeError(s);
+    }
+
+    function expectType(n, t) {
+        if (n.type !== t)
+            unexpected(n, "(expected " + t + ")");
     }
 
     // Wrap the expression s in parentheses if needed.
@@ -421,6 +428,22 @@
                 return "`" + s + "`";
             }
 
+        case "TaggedTemplate":
+            {
+                let tag = expr(n.callee, indent, 16, false);
+                let cso = n.arguments[0];
+                expectType(cso, "CallSiteObject");
+                let s = "";
+                for (let i = 0; i < cso.raw.length; i++) {
+                    s += cso.raw[i];
+                    if (i + 1 < n.arguments.length) {
+                        let x = expr(n.arguments[i + 1], indent + INDENT_LEVEL, 1, false);
+                        s += "${" + x + "}";
+                    }
+                }
+                return tag + "`" + s + "`";
+            }
+
         default:
             return unexpected(n);
         }
@@ -595,6 +618,10 @@
 
 (function main(args) {
     "use strict";
+
+    // Some smoke tests. These do not cover all cases; the main goal is to be
+    // able to parse the SpiderMonkey test suite, which requires a separate
+    // test runner.
     function runUnitTests() {
         // These programs are spaced and parenthesized just so, such that
         // Reflect.stringify mirrors Reflect.parse for these strings.
@@ -661,6 +688,10 @@
              "    }()]: x} = obj);\n"),
             "`${x} > ${y}`;\n",
             "`${x, y}`;\n",
+            "f``;\n",
+            "x.y``;\n",
+            "md.obj.method(x)`${y}`;\n",
+            "let f = a => b`${a}`;\n",
 
             // YieldExpressions are only legal inside generators.
             ("function* gen() {\n" +
