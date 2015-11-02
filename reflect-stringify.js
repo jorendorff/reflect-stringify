@@ -138,6 +138,29 @@
         return n.type === "Identifier" && !n.name.match(/^[_$A-Za-z][_$A-Za-z0-9]*$/);
     }
 
+    function quoteChars(s, delim) {
+        var qc = '';
+        for (let c of s) {
+            var i = c.codePointAt(0);
+            if (c === "\n") {
+                qc += "\\n";
+            } else if (c === "\t") {
+                qc += "\\t";
+            } else if (c === "\r") {
+                qc += "\\r";
+            } else if (c === delim) {
+                qc += "\\" + delim;
+            } else if (i > 0xffff) {
+                qc += "\\u{" + i.toString(16) + "}";
+            } else if (i > 0xff || i < 0x20) {
+                qc += "\\u" + ("0000" + i.toString(16)).slice(-4);
+            } else {
+                qc += c;
+            }
+        }
+        return qc;
+    }
+
     // Convert an expression object to a string.
     // cprec is the context precedence. If it is high, but n has low
     // precedence, n is automatically wrapped in parentheses.
@@ -171,6 +194,7 @@
         case "ObjectExpression":
             {
                 var s = [];
+                var extraIndent = indent + INDENT_LEVEL;
                 for (let prop of n.properties) {
                     let code;
                     switch (prop.type) {
@@ -178,7 +202,7 @@
                         switch (prop.kind) {
                         case "init":
                             {
-                                let key = expr(prop.key, indent, 18, false);
+                                let key = expr(prop.key, extraIndent, 18, false);
                                 if (prop.shorthand)
                                     code = key;
                                 else if (prop.method)
@@ -356,9 +380,30 @@
                 var s = [];
                 for (var i = 0; i < n.properties.length; i++) {
                     var p = n.properties[i];
-                    s[i] = expr(p.key, '####', 18, false) + ": " + expr(p.value, indent, 2, false);
+                    s[i] = expr(p.key, indent + INDENT_LEVEL, 18, false) +
+                            ": " +
+                            expr(p.value, indent + INDENT_LEVEL, 2, false);
                 }
                 return "{" + s.join(", ") + "}";
+            }
+
+        case "TemplateLiteral":
+            {
+                var s = "";
+                var expectString = true;
+                for (let e of n.elements) {
+                    if (expectString) {
+                        if (e.type !== "Literal")
+                            unexpected(e);
+                        if (typeof e.value !== "string")
+                            throw new Error("unexpected " + uneval(e.value) + " in TemplateLiteral");
+                        s += quoteChars(e.value);
+                    } else {
+                        s += "${" + expr(e, indent + INDENT_LEVEL, 1, false) + "}";
+                    }
+                    expectString = !expectString;
+                }
+                return "`" + s + "`";
             }
 
         default:
@@ -383,6 +428,8 @@
 
     var stmt = sourceElement;
 
+    var INDENT_LEVEL = "    ";  // four spaces, no arguments
+
     function sourceElement(n, indent) {
         if (indent === void 0)
             indent = "";
@@ -390,7 +437,7 @@
         switch (n.type) {
         case "BlockStatement":
             return (indent + "{\n" +
-                    n.body.map(x => stmt(x, indent + "    ")).join("") +
+                    n.body.map(x => stmt(x, indent + INDENT_LEVEL)).join("") +
                     indent + "}\n");
 
         case "VariableDeclaration":
@@ -406,9 +453,6 @@
                     s = "(" + s + ")";
                 return indent + s + ";\n";
             }
-
-        case "LetStatement":
-            return indent + "let (" + declarators(n.head, indent) + ")" + substmt(n.body, indent);
 
         case "IfStatement":
             {
@@ -560,6 +604,12 @@
              "    return this;\n" +
              "}});\n"),
             ("({f() {\n}});\n"),
+            ("({[Symbol.iterator]: function* () {\n" +
+             "    yield this;\n" +
+             "}});\n"),
+            ("({[function () {\n" +
+             "        return \"name\";\n" +
+             "    }()]: \"jeff\"});\n"),
             "let pt = {x, y};\n",
             "[,, 2];\n",
             "[, 1,,];\n",
@@ -591,6 +641,11 @@
             "x.y = z;\n",
             "get(id).text = f();\n",
             "[,] = x;\n",
+            ("({[function () {\n" +
+             "        return \"name\";\n" +
+             "    }()]: x} = obj);\n"),
+            "`${x} > ${y}`;\n",
+            "`${x, y}`;\n",
 
             // YieldExpressions are only legal inside generators.
             ("function* gen() {\n" +
