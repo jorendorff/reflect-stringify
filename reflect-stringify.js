@@ -126,12 +126,22 @@
     }
 
     function comprehension(n, indent) {
-        let s = expr(n.body, indent, 2, false);
-        for (let block of n.blocks)
-            s += " " + forHead(block, block.of ? "of" : "in", indent);
+        let body = expr(n.body, indent, 2, false);
+        let heads = [];
+        for (let block of n.blocks) {
+            if (block.type == "ComprehensionIf") {
+                heads.push("if (" + expr(block.test, indent, 0, false) + ")")
+            } else {
+                heads.push(forHead(block, block.of ? "of" : "in", indent));
+            }
+        }
         if (n.filter)
-            s += " if (" + expr(n.filter, indent, 0, false) + ")";
-        return s;
+            heads.push("if (" + expr(n.filter, indent, 0, false) + ")");
+
+        if (n.style === "legacy")
+            return body + " " + heads.join(" ");
+        else // modern
+            return heads.join(" ") + " " + body;
     }
 
     function isBadIdentifier(n) {
