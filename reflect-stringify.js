@@ -181,9 +181,22 @@
     }
 
     // Convert an expression object to a string.
+    //
     // cprec is the context precedence. If it is high, but n has low
     // precedence, n is automatically wrapped in parentheses.
-    // if noIn is true, wrap in-expressions in parentheses.
+    // The common values of cprec are:
+    //     0 or 1 - return any Expression
+    //         (no need to parenthesize it)
+    //     2 - return an AssignmentExpression
+    //         (if n uses `,` as an operator, wrap it in parens)
+    //     17 - return a LeftHandSideExpression
+    //         (if n uses any binary operators, make sure they're wrapped in parens)
+    //     18 - return a MemberExpression
+    //         (like above but also wrap function calls in parens)
+    //     19 - return a PrimaryExpression
+    //         (even wrap stuff like `x.y` in parens)
+    //
+    // If noIn is true, wrap in-expressions in parentheses.
     function expr(n, indent, cprec, noIn = false) {
         assertEq(noIn, noIn && cprec <= 11);
 
