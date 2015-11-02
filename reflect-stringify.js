@@ -142,7 +142,9 @@
         var qc = '';
         for (let c of s) {
             var i = c.codePointAt(0);
-            if (c === "\n") {
+            if (c === "\\") {
+                qc += "\\\\";
+            } else if (c === "\n") {
                 qc += "\\n";
             } else if (c === "\t") {
                 qc += "\\t";
