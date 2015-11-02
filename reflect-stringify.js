@@ -268,7 +268,9 @@
         case "YieldExpression":
             // `yield a, b` is a SyntaxError; it must be parenthesized
             // `(yield a), b` or `yield (a, b)`.
-            return wrapExpr("yield" + (n.argument ? " " + expr(n.argument, indent, 2, false) : ""),
+            return wrapExpr("yield" +
+                            (n.delegate ? "*" : "") +
+                            (n.argument ? " " + expr(n.argument, indent, 2, false) : ""),
                             cprec, 1);
 
         case "SequenceExpression":
@@ -702,6 +704,10 @@
              "}\n"),
             ("function* gen() {\n" +
              "    (yield a), b;\n" +
+             "}\n"),
+            ("function* gen() {\n" +
+             "    yield this.head;\n" +
+             "    yield* this.tail;\n" +
              "}\n"),
 
             // Reconstituting constant-folded NaNs and Infinities
