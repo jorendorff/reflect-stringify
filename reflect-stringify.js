@@ -57,7 +57,7 @@
         let {params, defaults, rest} = n;
         var args = [];
         for (let i = 0; i < params.length; i++) {
-            let arg = expr(params[i], '####', 18, false);
+            let arg = expr(params[i], '####', 18);
             if (i < defaults.length && defaults[i] !== null) {
                 arg += " = " + expr(defaults[i], indent + INDENT_LEVEL, 2, false);
             }
