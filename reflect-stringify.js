@@ -312,6 +312,9 @@
                               : "." + expr(n.property, indent, 18, false)),
                             cprec, 18);
 
+        case "MetaProperty":
+            return expr(n.meta, "####", 18, false) + "." + expr(n.property, "####", 18, false);
+
         case "UnaryExpression":
         case "UpdateExpression":
             {
@@ -768,6 +771,9 @@
             "a = b => c;\n",
             "a => ({});\n",
             "y = a => ({}.x);\n",
+            ("function w() {\n" +
+             "    return new new.target;\n" +
+             "}\n"),
 
             // strict declarations
             ('"use strict";\n' +
