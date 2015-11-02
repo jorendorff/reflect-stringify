@@ -53,12 +53,24 @@
         return "\n" + stmt(n, indent + "    ") + (more ? indent : "");
     }
 
-    function params(arr, indent, opts) {
-        var stuff = arr.map(x => expr(x, '####', 18, false)).join(", ");
-        if (opts && opts.arrow && arr.length === 1 && arr[0].type === "Identifier")
-            return stuff;
-        else
-            return "(" + stuff + ")";
+    function params(n, indent) {
+        let {params, defaults} = n;
+        var args = [];
+        for (let i = 0; i < params.length; i++) {
+            let arg = expr(params[i], '####', 18, false);
+            if (i < defaults.length && defaults[i] !== null) {
+                arg += " = " + expr(defaults[i], indent + INDENT_LEVEL, 2, false);
+            }
+            args.push(arg);
+        }
+
+        let argsStr = args.join(", ");
+        let dropParens =
+            n.type === "ArrowFunctionExpression" &&
+            params.length === 1 &&
+            params[0].type === "Identifier" &&
+            defaults.length === 0;
+        return dropParens ? argsStr : "(" + argsStr + ")";
     }
 
     function args(arr, indent) {
@@ -88,7 +100,7 @@
             body = substmt(n.body, indent).trimRight();
         }
 
-        return init + name + params(n.params, indent) + body;
+        return init + name + params(n, indent) + body;
     }
 
     function identifierName(n) {
@@ -396,7 +408,7 @@
 
         case "ArrowFunctionExpression":
             {
-                let par = params(n.params, indent, {arrow: true});
+                let par = params(n, indent);
                 let body;
                 if (n.body.type === "BlockStatement") {
                     body = substmt(n.body, indent).trim();
@@ -833,6 +845,8 @@
             ("function w() {\n" +
              "    return new new.target;\n" +
              "}\n"),
+            "(a = 1) => 3;\n",
+            "(a, b = (c, d)) => 13;\n",
 
             // strict declarations
             ('"use strict";\n' +
