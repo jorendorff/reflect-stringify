@@ -345,7 +345,7 @@
             return (n.arguments.length == 0
                     ? wrapExpr("new " + expr(n.callee, indent, 18), cprec, 17)
                     : wrapExpr("new " + expr(n.callee, indent, 18) + args(n.arguments, indent),
-                               cprec, 17));
+                               cprec, 18));
 
         case "ThisExpression":
             return "this";
@@ -704,6 +704,8 @@
             "new (x());\n",
             "(new x).y;\n",
             "new (x().y);\n",
+            "new f(1)(2);\n",
+            "(new f)(2);\n",
             "a * x + b * y;\n",
             "a * (x + b) * y;\n",
             "a + (b + c);\n",
