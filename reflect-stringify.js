@@ -946,12 +946,13 @@
         }
     }
 
-    if (!args) {
-        return;
-    } else if (args.length === 0) {
-        return runUnitTests();
-    } else if (args.length === 2 && args[0] === "--check") {
-        var program = read(args[1]);
+    // Test Reflect.stringify against a file of JS code using the SpiderMonkey
+    // shell's built-in `disassemble()` testing function.
+    function checkFile(filename) {
+        // Load the script from the file, parse it to get an AST, then
+        // stringify it again.  The result should be a program that's identical
+        // in behavior, except for line numbers.
+        var program = read(filename);
         var after;
         try {
             after = Reflect.stringify(Reflect.parse(program, {loc: false}));
@@ -960,6 +961,8 @@
             throw exc;
         }
 
+        // To check that the two programs are the same, we compare bytecode.
+        // So get the bytecode of both programs...
         var dis0 = disassemble("-r", "-S", program);
         var dis1 = disassemble("-r", "-S", after);
 
@@ -989,6 +992,14 @@
             print(stripVaryingBits(dis1));
             print("\n=== END ===");
         }
+    }
+
+    if (!args) {
+        return;
+    } else if (args.length === 0) {
+        return runUnitTests();
+    } else if (args.length === 2 && args[0] === "--check") {
+        checkFile(args[1]);
     } else {
         throw new Error("usage: js reflect-stringify.js --check FILE");
     }
