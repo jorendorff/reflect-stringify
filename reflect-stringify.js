@@ -975,7 +975,24 @@
                     // Unfortunately the disassembly for JSOP_LAMBDA and
                     // JSOP_DEFFUN includes the entire function. Try and strip
                     // that out too.
-                    .replace(/(\n\d+: +(?:deffun|lambda|lambda_arrow)\b) +[\s\S]*?(?=\n0\d{4}:)/g, "$1 ***"));
+                    .replace(/(\n\d+: +(?:deffun|lambda|lambda_arrow)\b) +[\s\S]*?(?=\n0\d{4}:)/g,
+                             "$1 ***")
+                    // Amazingly, it's possible for `arguments` or `eval()` to
+                    // occur in code that is thrown away, i.e. doesn't appear
+                    // in the AST at all. In one js/src/tests test, this
+                    // results in round-trip diffs which we can paper over. We
+                    // only bother for `arguments`, not `eval()`.
+                    .replace(/(^loc +op\n-+ +-+\n)0+: +arguments\n0*1: +setlocal 1\n0*5: +pop\n((?:main:\n|\d+: .*\n)*)/mg,
+                             (fullMatch, group1, group2) => {
+                                 if (/local 1/.test(group2))
+                                     return fullMatch;
+                                 return (group1 +
+                                         group2.replace(/^(\d+)/mg, a => {
+                                             let s = String(Number(a) - 6);
+                                             return s.length < 5 ? ("00000" + s).slice(-5) : s;
+                                         }).replace(/\b(goto|ifeq) (\d+) /mg,
+                                                    (fullMatch, op, target) => `${op} ${target - 6} `));
+                             }));
         };
 
         if (stripVaryingBits(dis0) === stripVaryingBits(dis1)) {
